@@ -114,7 +114,12 @@ def backtest_lstm_multistep(data, model, x_scaler, y_scaler, seq_length, forecas
     if len(real) < forecast_length or len(real) == 0:
         return [], {'mae': None, 'rmse': None}, [], [], []
 
-    dates = [datetime.today() - timedelta(days=forecast_length - offset + 37) for offset in range(forecast_length)]
+    # Используем реальные даты, если они доступны
+    if len(real_dates) >= i + forecast_length:
+        dates = [pd.to_datetime(d) for d in real_dates[i:i + forecast_length]]
+    else:
+        # Фолбэк на относительные даты от текущего дня
+        dates = [datetime.today() - timedelta(days=forecast_length - offset + 37) for offset in range(forecast_length)]
 
     mae = mean_absolute_error(real, pred)
     rmse = np.sqrt(mean_squared_error(real, pred))
@@ -296,6 +301,9 @@ def predict():
             seq_length,
             forecast_days,
         )
+        if len(future_predictions_lstm) > 0:
+            offset = prices[-1] - future_predictions_lstm[0]
+            future_predictions_lstm = future_predictions_lstm + offset
         (
             backtest_predictions_lstm,
             backtest_error_lstm,
@@ -329,6 +337,9 @@ def predict():
             seq_length,
             forecast_days,
         )
+        if len(future_predictions_gru) > 0:
+            offset = prices[-1] - future_predictions_gru[0]
+            future_predictions_gru = future_predictions_gru + offset
         (
             backtest_predictions_gru,
             backtest_error_gru,
