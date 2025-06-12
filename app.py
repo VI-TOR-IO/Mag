@@ -255,11 +255,11 @@ def predict():
     real_dates = df['begin'].tolist()
     prices = df['close'].values
 
+    # Загрузка скейлеров для прогноза
     x_scaler_path = f"{SCALER_PATH}/{selected_ticker}_x_scaler_{forecast_days}d.pkl"
     y_scaler_path = f"{SCALER_PATH}/{selected_ticker}_y_scaler_{forecast_days}d.pkl"
     x_scaler = joblib.load(x_scaler_path)
     y_scaler = joblib.load(y_scaler_path)
-
 
     MIN_SEQ_LENGTH = 30
     max_possible_seq = len(prices) - forecast_days
@@ -268,35 +268,37 @@ def predict():
     if len(prices) < seq_length + forecast_days:
         return jsonify({'error': 'Недостаточно данных для прогноза'})
 
+    # Загружаем модели
     model_lstm = models_cache.get((selected_ticker, forecast_days, 'lstm'))
     model_gru = models_cache.get((selected_ticker, forecast_days, 'gru'))
+    
     if model_lstm is None and model_gru is None:
         return jsonify({'error': 'Модель не найдена'})
 
+    # Подготовка для графиков
+    last_date = df['begin'].iloc[-1]
+    forecast_x = [last_date + timedelta(days=i) for i in range(1, forecast_days + 1)]
+
     # Прогноз вперед от LSTM
-    future_predictions = []
+    future_predictions_lstm = []
+    backtest_predictions_lstm = []
+    backtest_error_lstm = {}
+    
     if model_lstm is not None:
-        future_predictions = predict_lstm_multistep(features, model_lstm, x_scaler, y_scaler, seq_length, forecast_days)
-        if len(future_predictions) > 0:
-            offset = prices[-1] - future_predictions[0]
-            future_predictions = future_predictions + offset
+        future_predictions_lstm = predict_lstm_multistep(features, model_lstm, x_scaler, y_scaler, seq_length, forecast_days)
+        backtest_predictions_lstm, backtest_error_lstm, _, _, _ = backtest_lstm_multistep(features, model_lstm, x_scaler, y_scaler, seq_length, forecast_days, real_dates)
 
     # Прогноз вперед от GRU
     future_predictions_gru = []
+    backtest_predictions_gru = []
+    backtest_error_gru = {}
+    
     if model_gru is not None:
         future_predictions_gru = predict_lstm_multistep(features, model_gru, x_scaler, y_scaler, seq_length, forecast_days)
-        if len(future_predictions_gru) > 0:
-            offset_g = prices[-1] - future_predictions_gru[0]
-            future_predictions_gru = future_predictions_gru + offset_g
-
-    # Backtest для ошибок
-    backtest_predictions, backtest_error, pred_back, real_back, back_dates = backtest_lstm_multistep(
-        features, model, x_scaler, y_scaler, seq_length, forecast_days, real_dates
-    )
+        backtest_predictions_gru, backtest_error_gru, _, _, _ = backtest_lstm_multistep(features, model_gru, x_scaler, y_scaler, seq_length, forecast_days, real_dates)
 
     # График цен
-    last_date = df['begin'].iloc[-1]
-    forecast_x = [last_date + timedelta(days=i) for i in range(1, forecast_days + 1)]
+    traces = []
     trace_real = go.Scatter(
         x=df['begin'],
         y=df['close'],
@@ -304,29 +306,17 @@ def predict():
         name='Исторические данные',
         line=dict(color='cyan')
     )
-    trace_pred = go.Scatter(x=forecast_x, y=future_predictions, mode='lines+markers',
-                            name='Прогноз LSTM', line=dict(color='orange'))
-    traces = [trace_real, trace_pred]
-    if future_predictions_gru:
+
+    trace_pred_lstm = go.Scatter(x=forecast_x, y=future_predictions_lstm, mode='lines+markers',
+                                 name='Прогноз LSTM', line=dict(color='orange'))
+    traces.append(trace_real)
+    traces.append(trace_pred_lstm)
+
+    # Исправление проверки на пустоту массива
+    if future_predictions_gru is not None and future_predictions_gru.any():  # Проверка на наличие данных в массиве
         trace_pred_gru = go.Scatter(x=forecast_x, y=future_predictions_gru, mode='lines+markers',
                                     name='Прогноз GRU', line=dict(color='deepskyblue'))
         traces.append(trace_pred_gru)
-
-    if backtest_predictions and pred_back is not None and real_back is not None and back_dates:
-        trace_backtest = go.Scatter(x=back_dates, y=pred_back, mode='lines+markers',
-                                    name='Прогноз назад', line=dict(color='magenta'))
-        trace_backtest_actual = go.Scatter(x=back_dates, y=real_back, mode='lines+markers',
-                                           name='Реальные значения (назад)', line=dict(color='lime'))
-        traces += [trace_backtest_actual, trace_backtest]
-
-    N = 30
-    if len(prices) > N:
-        x_range = [
-            df['begin'].iloc[-N].strftime('%Y-%m-%d'),
-            df['begin'].iloc[-1].strftime('%Y-%m-%d')
-        ]
-    else:
-        x_range = None
 
     layout = go.Layout(
         title=f'{selected_ticker} - Прогноз на {forecast_days} дней',
@@ -335,7 +325,6 @@ def predict():
             title='Дата',
             tickangle=45,
             type='date',
-            range=x_range,
             rangeslider=dict(visible=False)
         ),
         yaxis=dict(title='Цена'),
@@ -344,31 +333,33 @@ def predict():
         width=None,
         height=600
     )
+
     fig = go.Figure(data=traces, layout=layout)
     plot_div = pyo.plot(fig, output_type='div', config={'responsive': True})
 
     # График ошибок (рубли и проценты)
     error_plot_div = ""
-    if backtest_predictions and pred_back is not None and real_back is not None and back_dates:
-        trace_error = go.Scatter(
-            x=back_dates,
-            y=[p - r for p, r in zip(pred_back, real_back)],
+    if backtest_predictions_lstm and 'mae' in backtest_error_lstm:
+        mae = backtest_error_lstm['mae']  # Используем MAE из словаря
+        trace_error_lstm = go.Scatter(
+            x=real_dates,
+            y=[p - mae for p in backtest_predictions_lstm],  # Используем mae для ошибки
             mode='lines+markers',
-            name='Ошибка прогноза (руб.)',
+            name='Ошибка прогноза LSTM (руб.)',
             line=dict(color='red', dash='dot'),
             hovertemplate='Дата: %{x}, Ошибка: %{y:.2f} руб.<extra></extra>'
         )
-        trace_percent = go.Scatter(
-            x=back_dates,
-            y=[(p - r) / r * 100 if r else 0 for p, r in zip(pred_back, real_back)],
+        trace_percent_lstm = go.Scatter(
+            x=real_dates,
+            y=[(p - mae) / mae * 100 if mae else 0 for p in backtest_predictions_lstm],  # Используем mae для процента ошибки
             mode='lines+markers',
-            name='Ошибка прогноза (%)',
+            name='Ошибка прогноза LSTM (%)',
             yaxis='y2',
             line=dict(color='orange', dash='dot'),
             hovertemplate='Дата: %{x}, Ошибка: %{y:.2f}%<extra></extra>'
         )
         layout_error = go.Layout(
-            title='Ошибка прогноза (в рублях и %)',
+            title='Ошибка прогноза LSTM (в рублях и %)',
             template='plotly_dark',
             yaxis=dict(title='Ошибка (руб.)'),
             yaxis2=dict(title='Ошибка (%)', overlaying='y', side='right'),
@@ -376,17 +367,17 @@ def predict():
             legend=dict(x=0.01, y=1.15, orientation='h'),
             hovermode='x unified'
         )
-        fig_error = go.Figure(data=[trace_error, trace_percent], layout=layout_error)
+        fig_error = go.Figure(data=[trace_error_lstm, trace_percent_lstm], layout=layout_error)
         error_plot_div = pyo.plot(fig_error, output_type='div', config={'responsive': True})
 
     forecast_dates = [(last_date + timedelta(days=i)).strftime('%a, %d %B') for i in range(1, forecast_days + 1)]
-    base_preds = future_predictions if future_predictions else future_predictions_gru
+    base_preds = future_predictions_lstm if future_predictions_lstm else future_predictions_gru
     predictions = [{'date': date, 'value': round(val, 2)} for date, val in zip(forecast_dates, base_preds)]
 
-    # --- Рекомендация Покупка/Продажа ---
+    # Рекомендация
     RECOMMENDATION_THRESHOLD = 2.0  # %
     last_real_price = prices[-1]
-    chosen_pred = future_predictions if future_predictions else future_predictions_gru
+    chosen_pred = future_predictions_lstm if future_predictions_lstm else future_predictions_gru
     diff_percent = ((chosen_pred[-1] - last_real_price) / last_real_price) * 100
 
     if diff_percent > RECOMMENDATION_THRESHOLD:
@@ -399,8 +390,8 @@ def predict():
     plot_html = render_template('partials/plot.html', plot_div=plot_div, error_plot_div=error_plot_div)
     predictions_html = render_template('partials/predictions.html',
                                        predictions=predictions,
-                                       backtest_predictions=backtest_predictions,
-                                       backtest_error=backtest_error)
+                                       backtest_predictions=backtest_predictions_lstm,
+                                       backtest_error=backtest_error_lstm)
 
     return jsonify({
         'plot_html': plot_html,
@@ -410,6 +401,7 @@ def predict():
         'forecast_price': round(float(chosen_pred[-1]), 2),
         'show_recommendation': True
     })
+
 
 prices_cache = {}
 CACHE_TTL = 6000  # 100 минут
