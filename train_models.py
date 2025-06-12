@@ -15,7 +15,7 @@ from sklearn.model_selection import train_test_split
 # Параметры
 TICKERS = ["SBER", "GAZP", "LKOH", "VTBR", "ROSN"]
 FORECAST_DAYS_LIST = [1,3,7,30]
-SEQ_LENGTH = 30
+SEQ_LENGTH = 15
 MODEL_PATH = "models"
 SCALER_PATH = "scalers"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -51,7 +51,7 @@ class StockDatasetMultiStep(Dataset):
 
 # Модель LSTM для многодневного прогнозирования
 class LSTMModelMultiStep(nn.Module):
-    def __init__(self, input_size=7, hidden_size=64, num_layers=2, forecast_length=7, dropout=0.2):
+    def __init__(self, input_size=7, hidden_size=128, num_layers=3, forecast_length=7, dropout=0.3):
         super().__init__()
         self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, bidirectional=True, dropout=dropout)
         self.fc = nn.Linear(hidden_size * 2, forecast_length)

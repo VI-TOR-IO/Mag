@@ -41,7 +41,7 @@ class StockDatasetMultiStep(Dataset):
         return torch.tensor(x, dtype=torch.float32), torch.tensor(y.squeeze(), dtype=torch.float32)
 
 class LSTMModelMultiStep(nn.Module):
-    def __init__(self, input_size=7, hidden_size=64, num_layers=2, forecast_length=7):
+    def __init__(self, input_size=7, hidden_size=128, num_layers=3, forecast_length=7):
         super(LSTMModelMultiStep, self).__init__()
         self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, bidirectional=True, dropout=0.2)
         self.fc = nn.Linear(hidden_size * 2, forecast_length)
@@ -95,7 +95,7 @@ def predict_lstm_multistep(data, model, x_scaler, y_scaler, seq_length, forecast
 def backtest_lstm_multistep(data, model, x_scaler, y_scaler, seq_length, forecast_length, real_dates):
     model.eval()
     close_column_index = 3
-    i = len(data) - forecast_length - seq_length - 15
+    i = len(data) - forecast_length - seq_length
     window = data[i - seq_length:i]
     if window.shape[0] < seq_length:
         return [], {'mae': None, 'rmse': None}, [], [], []
@@ -114,11 +114,7 @@ def backtest_lstm_multistep(data, model, x_scaler, y_scaler, seq_length, forecas
     if len(real) < forecast_length or len(real) == 0:
         return [], {'mae': None, 'rmse': None}, [], [], []
 
-    # Используем реальные даты вместо смещения от текущего дня
-    if len(real_dates) >= i + forecast_length:
-        dates = real_dates[i:i + forecast_length]
-    else:
-        dates = [datetime.today() - timedelta(days=forecast_length - offset + 45) for offset in range(forecast_length)]
+    dates = [datetime.today() - timedelta(days=forecast_length - offset + 30) for offset in range(forecast_length)]
 
     mae = mean_absolute_error(real, pred)
     rmse = np.sqrt(mean_squared_error(real, pred))
@@ -292,6 +288,7 @@ def predict():
         if len(future_predictions_gru) > 0:
             offset_g = prices[-1] - future_predictions_gru[0]
             future_predictions_gru = future_predictions_gru + offset_g
+
     # Backtest для ошибок
     backtest_predictions, backtest_error, pred_back, real_back, back_dates = backtest_lstm_multistep(
         features, model, x_scaler, y_scaler, seq_length, forecast_days, real_dates
