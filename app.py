@@ -288,7 +288,8 @@ def predict():
         if len(future_predictions_gru) > 0:
             offset_g = prices[-1] - future_predictions_gru[0]
             future_predictions_gru = future_predictions_gru + offset_g
-
+    chosen_model = model_lstm if model_lstm is not None else model_gru
+        features, chosen_model, x_scaler, y_scaler, seq_length, forecast_days, real_dates
     # Backtest для ошибок
     backtest_predictions, backtest_error, pred_back, real_back, back_dates = backtest_lstm_multistep(
         features, model, x_scaler, y_scaler, seq_length, forecast_days, real_dates
