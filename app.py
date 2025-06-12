@@ -9,14 +9,11 @@ from datetime import datetime, timedelta
 from moexalgo import Stock
 import torch
 import torch.nn as nn
-from sklearn.preprocessing import MinMaxScaler
 import plotly.graph_objs as go
 import plotly.offline as pyo
 from torch.utils.data import Dataset
-from flask import session
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask import request, redirect, url_for, flash, session
 import joblib
 
 app = Flask(__name__)
@@ -241,7 +238,6 @@ def predict():
     x_scaler = joblib.load(x_scaler_path)
     y_scaler = joblib.load(y_scaler_path)
 
-    scaled_features = x_scaler.transform(features)
 
     MIN_SEQ_LENGTH = 30
     max_possible_seq = len(prices) - forecast_days
