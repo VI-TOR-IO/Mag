@@ -100,13 +100,22 @@ def backtest_lstm_multistep(data, model, x_scaler, y_scaler, seq_length, forecas
     if len(real) < forecast_length or len(real) == 0:
         return [], {'mae': None, 'rmse': None}, [], [], []
 
-    dates = [datetime.today() - timedelta(days=forecast_length - offset + 45) for offset in range(forecast_length)]
+    raw_dates = real_dates[i:i + forecast_length]
 
-    mae = mean_absolute_error(real, pred)
-    rmse = np.sqrt(mean_squared_error(real, pred))
+    daily_data = {}
+    for d, p, r in zip(raw_dates, pred, real):
+        day = d.date()
+        daily_data[day] = (p, r)
 
-    predictions = [{'date': d.strftime('%a, %d %B'), 'value': round(p, 2)} for d, p in zip(dates, pred)]
-    return predictions, {'mae': round(mae, 4), 'rmse': round(rmse, 4)}, pred, real, dates
+    dates = [datetime.combine(day, datetime.min.time()) for day in sorted(daily_data.keys())]
+    pred_daily = [daily_data[day][0] for day in sorted(daily_data.keys())]
+    real_daily = [daily_data[day][1] for day in sorted(daily_data.keys())]
+
+    mae = mean_absolute_error(real_daily, pred_daily)
+    rmse = np.sqrt(mean_squared_error(real_daily, pred_daily))
+
+    predictions = [{'date': d.strftime('%a, %d %B'), 'value': round(p, 2)} for d, p in zip(dates, pred_daily)]
+    return predictions, {'mae': round(mae, 4), 'rmse': round(rmse, 4)}, pred_daily, real_daily, dates
 
 
 def get_db_connection():
