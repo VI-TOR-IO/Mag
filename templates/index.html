@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block title %}Главная{% endblock %}
+{% block content %}
+<div class="container-fluid py-5 fade-in">
+  <h1 class="text-center mb-5 text-warning display-4 fw-bold">AI TradingView</h1>
+
+  <!-- 1. Блок с тикерами и ценами -->
+  <div class="card bg-dark text-light shadow-sm p-4 mb-4">
+    <h5 class="mb-3">Текущие цены</h5>
+    <div id="tickers-loading" class="text-center">
+      <div class="spinner-border text-warning" role="status">
+        <span class="visually-hidden">Загрузка...</span>
+      </div>
+    </div>
+    <div id="tickers-table" class="table-responsive d-none">
+      <!-- JS вставит таблицу -->
+    </div>
+  </div>
+
+  <!-- 2. Форма прогноза -->
+  <div class="card bg-dark text-light shadow-sm p-4 mb-5">
+    <h4 class="mb-4">Сделать прогноз</h4>
+    <form id="forecast-form" class="row g-4">
+      <div class="col-md-6">
+        <label class="form-label">Тикер</label>
+        <select name="ticker" class="form-select">
+          {% for t in tickers %}
+          <option value="{{ t }}" {% if t == selected_ticker %}selected{% endif %}>{{ t }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Период прогноза</label>
+        <select name="days" class="form-select">
+          <option value="1">1 день</option>
+          <option value="3">3 дня</option>
+          <option value="7">7 дней</option>
+          <option value="30">30 дней</option>
+        </select>
+      </div>
+      <div class="col-12 d-grid">
+        <button type="submit" class="btn btn-warning btn-lg">Показать прогноз</button>
+      </div>
+      <div id="loading" class="text-center d-none mb-3">
+        <div class="spinner-border text-warning" role="status">
+          <span class="visually-hidden">Загрузка...</span>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <!-- 3. График прогноза -->
+  <div id="plot-container"></div>
+
+  <!-- 4. Результаты прогноза -->
+  <div id="predictions-container"></div>
+</div>
+
+<script>
+  // 1. Грузим тикеры через AJAX
+  function loadTickers() {
+    const loading = document.getElementById('tickers-loading');
+    const tableDiv = document.getElementById('tickers-table');
+    loading.classList.remove('d-none');
+    tableDiv.classList.add('d-none');
+    fetch('/prices').then(resp => resp.json()).then(data => {
+      let html = `<table class="table table-dark table-striped align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Тикер</th>
+            <th>Последняя цена</th>
+            <th>Изменение d2d</th>
+            <th>Изменение d2d %</th>
+          </tr>
+        </thead><tbody>`;
+      for (const t of data) {
+        html += `<tr>
+          <td>${t.symbol}</td>
+          <td>${t.last}</td>
+          <td class="${t.change > 0 ? 'text-success' : t.change < 0 ? 'text-danger' : ''}">${t.change > 0 ? '+' : ''}${t.change}</td>
+          <td class="${t.percent > 0 ? 'text-success' : t.percent < 0 ? 'text-danger' : ''}">${t.percent > 0 ? '+' : ''}${t.percent}%</td>
+        </tr>`;
+      }
+      html += '</tbody></table>';
+      tableDiv.innerHTML = html;
+      loading.classList.add('d-none');
+      tableDiv.classList.remove('d-none');
+    }).catch(() => {
+      loading.innerHTML = '<div class="alert alert-danger">Ошибка загрузки цен</div>';
+    });
+  }
+  loadTickers();
+
+  // 2. AJAX форма прогноза
+  document.getElementById('forecast-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const form = e.target;
+    const data = {
+      ticker: form.ticker.value,
+      days: form.days.value
+    };
+    const loading = document.getElementById('loading');
+    loading.classList.remove('d-none');
+    try {
+      const response = await fetch('/predict', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+      });
+      const result = await response.json();
+      if (result.error) {
+        alert(result.error);
+      } else {
+        const plotContainer = document.getElementById('plot-container');
+        const tmpDiv = document.createElement('div');
+        tmpDiv.innerHTML = result.plot_html;
+        plotContainer.innerHTML = tmpDiv.innerHTML;
+
+        tmpDiv.querySelectorAll('script').forEach(oldScript => {
+          const script = document.createElement('script');
+          script.type = oldScript.type || 'application/javascript';
+          if (oldScript.src) {
+            script.src = oldScript.src;
+          } else {
+            script.textContent = oldScript.textContent;
+          }
+          document.body.appendChild(script);
+        });
+
+        // Новый красивый блок рекомендации
+        const predContainer = document.getElementById('predictions-container');
+        let recommendationHtml = '';
+        if (result.show_recommendation && result.recommendation) {
+          let recommendationColor = "#ffc107"; // default yellow
+          let icon = "";
+          if (result.recommendation === "Продажа") {
+            recommendationColor = "#4fe37c";
+            icon = "&#x1F7E2;";
+          }
+          if (result.recommendation === "Покупка") {
+            recommendationColor = "#ff5b5b";
+            icon = "&#x1F534;";
+          }
+          if (result.recommendation === "Держать") {
+            recommendationColor = "#bcbcbc";
+            icon = "&#x26AA;";
+          }
+          let deviationColor = result.diff_percent > 0 ? '#4fe37c'
+                                : (result.diff_percent < 0 ? '#ff5b5b' : '#bcbcbc');
+
+          recommendationHtml = `
+            <div class="recommendation-box mb-3 p-4 text-center">
+              <div class="mb-2" style="font-size:1.55em; font-weight:700; letter-spacing:0.5px;">
+                <span style="margin-right:7px; font-size:1.2em; vertical-align:middle;">${icon}</span>
+                <span style="color:${recommendationColor}">Рекомендация: ${result.recommendation}</span>
+              </div>
+              <div class="mb-1" style="font-size:1.15em;">
+                <span style="color:#FFD600;">Прогнозируемая цена:</span>
+                <span class="text-light" style="font-weight:600;">${result.forecast_price} ₽</span>
+              </div>
+              <div style="font-size:1.1em;">
+                <span style="color:#FFD600;">Отклонение от текущей цены:</span>
+                <span style="color: ${deviationColor}; font-weight:600;">
+                  ${result.diff_percent > 0 ? '+' : ''}${result.diff_percent}%
+                </span>
+              </div>
+            </div>
+          `;
+        }
+        predContainer.innerHTML = recommendationHtml + result.predictions_html;
+      }
+    } catch (err) {
+      alert('Ошибка сети или сервера');
+    } finally {
+      loading.classList.add('d-none');
+    }
+  });
+</script>
+{% endblock %}

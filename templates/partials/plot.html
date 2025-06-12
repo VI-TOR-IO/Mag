@@ -1,0 +1,13 @@
+{% if plot_div %}
+<div class="card bg-dark text-light shadow-sm p-4 mb-4">
+  <h5 class="mb-3">Прогноз</h5>
+  {{ plot_div | safe }}
+</div>
+{% endif %}
+
+{% if error_plot_div %}
+<div class="card bg-dark text-light shadow-sm p-4 mb-5">
+  <h5 class="mb-3">Ошибка прогноза</h5>
+  {{ error_plot_div | safe }}
+</div>
+{% endif %}

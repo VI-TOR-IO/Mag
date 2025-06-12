@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+{% block title %}Профиль{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-center align-items-center">
+  <div class="card shadow-lg border-0 p-4 profile-card w-100" style="max-width: 750px;">
+    <h2 class="text-center mb-4" style="color: #FFD600; font-weight: 700; letter-spacing: 1px;">Профиль пользователя</h2>
+
+    <!-- Кнопки для добавления брокеров -->
+    <div class="mb-3 text-center d-flex flex-column align-items-center">
+      {% if not has_sber %}
+        <button class="btn btn-outline-warning btn-sm px-3 py-2 rounded-pill d-inline-flex align-items-center profile-broker-btn"
+                id="add-sber-btn" data-bs-toggle="modal" data-bs-target="#devModalSber">
+          <img src="/static/sber.png" width="22" height="22" alt="Сбер">
+          Добавить Сбер Инвестиции
+        </button>
+      {% endif %}
+      {% if not has_tinkoff %}
+        <button class="btn btn-outline-warning btn-sm px-3 py-2 rounded-pill d-inline-flex align-items-center profile-broker-btn"
+                id="add-tinkoff-btn" data-bs-toggle="modal" data-bs-target="#devModalTinkoff">
+          <img src="/static/tinkoff.png" width="22" height="22" alt="Тинькофф">
+          Добавить Тинькофф Инвестиции
+        </button>
+      {% endif %}
+    </div>
+
+    <!-- Подключённые брокеры -->
+    {% if has_tinkoff %}
+      <div class="d-flex align-items-center bg-dark profile-broker-block px-3 py-2 mb-2">
+        <img src="/static/tinkoff.png" width="22" height="22" alt="Тинькофф">
+        <span class="me-auto ms-2 text-light">Тинькофф</span>
+        <span class="badge bg-success rounded-pill fw-normal" style="font-size:0.9em;">Подключено</span>
+      </div>
+    {% endif %}
+    {% if has_sber %}
+      <div class="d-flex align-items-center bg-dark profile-broker-block px-3 py-2 mb-2">
+        <img src="/static/sber.png" width="22" height="22" alt="Сбер">
+        <span class="me-auto ms-2 text-light">Сбер</span>
+        <span class="badge bg-success rounded-pill fw-normal" style="font-size:0.9em;">Подключено</span>
+      </div>
+    {% endif %}
+
+    <!-- Ваш портфель -->
+    <div class="mb-4 mt-4">
+      <div class="d-flex align-items-center mb-3">
+        <h5 class="text-warning fw-bold mb-0">Ваш портфель</h5>
+        <div class="ms-auto">
+          <button class="btn btn-outline-warning rounded-pill px-2 py-1 fw-semibold w-auto"
+                  data-bs-toggle="modal" data-bs-target="#addStockModal">
+            + Добавить акцию
+          </button>
+        </div>
+      </div>
+      {% if portfolio %}
+      <div class="table-responsive">
+        <table class="table table-sm table-dark align-middle mb-0 rounded-3 overflow-hidden">
+          <thead class="bg-secondary bg-gradient text-light small">
+            <tr>
+              <th>Тикер</th>
+              <th>Кол-во</th>
+              <th>Средняя цена</th>
+              <th>Брокер</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for paper in portfolio %}
+            <tr>
+              <td class="fw-bold">{{ paper['ticker'] }}</td>
+              <td>{{ paper['count'] }}</td>
+              <td>{{ paper['avg_price'] }}</td>
+              <td>{{ paper['broker'] }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="alert alert-info mt-2 mb-0 py-2 text-center">Нет данных по портфелю.</div>
+      {% endif %}
+    </div>
+
+    <!-- История покупок -->
+    <div class="mb-4">
+      <h5 class="text-warning mb-3 fw-bold">История покупок</h5>
+      {% if transactions %}
+      <div class="table-responsive">
+        <table class="table table-sm table-dark align-middle mb-0 rounded-3 overflow-hidden">
+          <thead class="bg-secondary bg-gradient text-light small">
+            <tr>
+              <th>Дата</th>
+              <th>Тикер</th>
+              <th>Кол-во</th>
+              <th>Цена</th>
+              <th>Брокер</th>
+              <th style="width: 85px;"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in transactions %}
+            <tr>
+              <td>{{ t['datetime'] }}</td>
+              <td class="fw-bold">{{ t['ticker'] }}</td>
+              <td>{{ t['count'] }}</td>
+              <td>{{ t['price'] }}</td>
+              <td>{{ t['broker'] }}</td>
+              <td>
+                <div class="d-flex flex-row gap-1 justify-content-end">
+                  <!-- Edit button -->
+                  <button class="btn btn-sm btn-outline-light" data-bs-toggle="modal"
+                          data-bs-target="#editTransactionModal{{ t['id'] }}" title="Редактировать">
+                    <i class="bi bi-pencil" style="font-size:1.1em; color:#FFD600;"></i>
+                  </button>
+                  <!-- Delete button -->
+                  <form method="post" action="{{ url_for('delete_transaction', transaction_id=t['id']) }}" style="display:inline;">
+                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Удалить" onclick="return confirm('Удалить запись?')">
+                      <i class="bi bi-trash" style="font-size:1.1em;"></i>
+                    </button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+            <!-- Edit Transaction Modal -->
+            <div class="modal fade" id="editTransactionModal{{ t['id'] }}" tabindex="-1" aria-hidden="true">
+              <div class="modal-dialog">
+                <form method="post" action="{{ url_for('edit_transaction', transaction_id=t['id']) }}">
+                  <div class="modal-content bg-dark text-light">
+                    <div class="modal-header border-0">
+                      <h5 class="modal-title text-warning">Редактировать операцию</h5>
+                      <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                      <div class="mb-3">
+                        <label class="form-label">Тикер</label>
+                        <input type="text" class="form-control" name="ticker" value="{{ t['ticker'] }}" required>
+                      </div>
+                      <div class="mb-3">
+                        <label class="form-label">Количество</label>
+                        <input type="number" class="form-control" name="count" value="{{ t['count'] }}" required>
+                      </div>
+                      <div class="mb-3">
+                        <label class="form-label">Цена</label>
+                        <input type="number" class="form-control" name="price" value="{{ t['price'] }}" required>
+                      </div>
+                      <div class="mb-3">
+                        <label class="form-label">Брокер</label>
+                        <select name="broker" class="form-select">
+                          <option value="Тинькофф" {% if t['broker']=='Тинькофф' %}selected{% endif %}>Тинькофф</option>
+                          <option value="Сбер" {% if t['broker']=='Сбер' %}selected{% endif %}>Сбер</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div class="modal-footer border-0">
+                      <button type="submit" class="btn btn-warning px-4 rounded-pill">Сохранить</button>
+                    </div>
+                  </div>
+                </form>
+              </div>
+            </div>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="alert alert-info mt-2 mb-0 py-2 text-center">Нет истории покупок.</div>
+      {% endif %}
+    </div>
+
+    <!-- Кнопки управления профилем внизу -->
+    <div class="mt-4 d-flex justify-content-between align-items-center">
+      <a href="{{ url_for('index') }}" class="btn btn-outline-light rounded-pill px-4 fw-semibold">На главную</a>
+      <a href="{{ url_for('logout') }}" class="btn btn-outline-warning rounded-pill px-4 fw-semibold">Выйти</a>
+    </div>
+  </div>
+</div>
+
+<!-- Add Stock Modal -->
+<div class="modal fade" id="addStockModal" tabindex="-1" aria-labelledby="addStockLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <form method="post" action="{{ url_for('add_stock') }}">
+      <div class="modal-content bg-dark text-light">
+        <div class="modal-header border-0">
+          <h5 class="modal-title text-warning" id="addStockLabel">Добавить акцию</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Тикер</label>
+            <input type="text" class="form-control" name="ticker" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Количество</label>
+            <input type="number" class="form-control" name="count" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Цена за штуку</label>
+            <input type="number" class="form-control" name="price" step="0.01" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Брокер</label>
+            <select name="broker" class="form-select">
+              <option value="Тинькофф">Тинькофф</option>
+              <option value="Сбер">Сбер</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer border-0">
+          <button type="submit" class="btn btn-warning px-4 rounded-pill">Добавить</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Модалка "В разработке" для Сбера -->
+<div class="modal fade" id="devModalSber" tabindex="-1" aria-labelledby="devModalLabelSber" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content bg-dark text-light rounded-4 border-0 shadow-lg">
+      <div class="modal-header border-0">
+        <h5 class="modal-title text-warning" id="devModalLabelSber">В разработке</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+      </div>
+      <div class="modal-body text-center py-4">
+        <img src="/static/sber.png" width="38" class="mb-3" alt="Сбер">
+        <div style="font-size: 1.18em;">
+          <strong>Функционал подключения брокерского кабинета<br>Сбер появится в следующих релизах</strong>
+        </div>
+        <div class="mt-3 text-secondary" style="font-size: 0.95em;">
+          Следите за обновлениями!
+        </div>
+      </div>
+      <div class="modal-footer border-0 justify-content-center">
+        <button type="button" class="btn btn-outline-warning rounded-pill px-4" data-bs-dismiss="modal">Понятно</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Модалка "В разработке" для Тинькофф -->
+<div class="modal fade" id="devModalTinkoff" tabindex="-1" aria-labelledby="devModalLabelTinkoff" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content bg-dark text-light rounded-4 border-0 shadow-lg">
+      <div class="modal-header border-0">
+        <h5 class="modal-title text-warning" id="devModalLabelTinkoff">В разработке</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+      </div>
+      <div class="modal-body text-center py-4">
+        <img src="/static/tinkoff.png" width="38" class="mb-3" alt="Тинькофф">
+        <div style="font-size: 1.18em;">
+          <strong>Функционал подключения брокерского кабинета<br>Тинькофф появится в следующих релизах</strong>
+        </div>
+        <div class="mt-3 text-secondary" style="font-size: 0.95em;">
+          Следите за обновлениями!
+        </div>
+      </div>
+      <div class="modal-footer border-0 justify-content-center">
+        <button type="button" class="btn btn-outline-warning rounded-pill px-4" data-bs-dismiss="modal">Понятно</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

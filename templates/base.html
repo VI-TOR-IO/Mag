@@ -1,0 +1,106 @@
+<!-- base.html (обновлено) -->
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}AI TradingView{% endblock %}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+</head>
+
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top">
+        <div class="container-fluid">
+            <a class="navbar-brand text-warning" href="{{ url_for('index') }}">AI TradingView</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    {% if session.username %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('profile') }}">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-person" viewBox="0 0 16 16" style="vertical-align: text-bottom;">
+                            <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
+                            <path d="M14 14s-1-1.5-6-1.5S2 14 2 14v1h12v-1z"/>
+                            </svg>
+                            Профиль
+                        </a>
+                    </li>
+                    <!-- <li class="nav-item d-flex align-items-center ms-3">
+                        <div class="form-check form-switch text-light">
+                            <input class="form-check-input" type="checkbox" id="themeToggle">
+                            <label class="form-check-label" for="themeToggle">Тема</label>
+                        </div>
+                    </li> -->
+                    {% else %}
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('login') }}">Вход</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('register') }}">Регистрация</a></li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid py-4 px-5">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+            <div class="alert alert-{{ 'success' if category=='success' else 'danger' if category=='danger' else 'info' }} fade show d-flex align-items-center justify-content-between"
+                role="alert" id="auto-close-alert-{{ loop.index }}">
+            <span>{{ message }}</span>
+            </div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+
+    <script>
+    const toggle = document.getElementById('themeToggle');
+    const isDark = localStorage.getItem('theme') !== 'light';
+
+    const updateTheme = (dark) => {
+        document.body.classList.toggle('bg-dark', dark);
+        document.body.classList.toggle('text-light', dark);
+        document.body.classList.toggle('bg-light', !dark);
+        document.body.classList.toggle('text-dark', !dark);
+        document.querySelectorAll('.card, .navbar').forEach(el => {
+        el.classList.toggle('bg-dark', dark);
+        el.classList.toggle('text-light', dark);
+        el.classList.toggle('bg-light', !dark);
+        el.classList.toggle('text-dark', !dark);
+        });
+    };
+
+    if (toggle) {
+        toggle.checked = isDark;
+        updateTheme(isDark);
+
+        toggle.addEventListener('change', () => {
+        const dark = toggle.checked;
+        localStorage.setItem('theme', dark ? 'dark' : 'light');
+        updateTheme(dark);
+        });
+    }
+    </script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.alert').forEach(function(alert) {
+            setTimeout(function() {
+                alert.classList.remove('show');
+                setTimeout(function() {
+                alert.remove();
+                }, 500); 
+            }, 2000);
+            });
+        });
+    </script>
+</body>
+</html>

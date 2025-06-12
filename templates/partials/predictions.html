@@ -1,0 +1,35 @@
+<div class="table-responsive">
+  <div class="alert alert-info">Ошибка на истории: MAE = {{ backtest_error.mae }}, RMSE = {{ backtest_error.rmse }}</div>
+  <table class="table table-sm table-dark align-middle mb-0 rounded-3 overflow-hidden">
+    <thead class="bg-secondary bg-gradient text-light small">
+      <tr>
+        <th>Дата</th>
+        <th>Значение</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if backtest_predictions %}
+        <tr>
+          <td colspan="2" class="text-left text-info"><strong>Прогноз назад</strong></td>
+        </tr>
+        {% for p in backtest_predictions %}
+        <tr>
+          <td>{{ p.date }}</td>
+          <td>{{ p.value }}</td>
+        </tr>
+        {% endfor %}
+      {% endif %}
+      {% if predictions %}
+        <tr>
+          <td colspan="2" class="text-left text-info"><strong>Прогноз вперёд</strong></td>
+        </tr>
+        {% for p in predictions %}
+        <tr>
+          <td>{{ p.date }}</td>
+          <td>{{ p.value }}</td>
+        </tr>
+        {% endfor %}
+      {% endif %}
+    </tbody>
+  </table>
+</div>
