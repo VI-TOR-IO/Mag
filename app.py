@@ -20,7 +20,7 @@ app = Flask(__name__)
 app.secret_key = 'Trader'
 
 TICKERS = ["SBER", "GAZP", "LKOH", "VTBR", "ROSN"]
-SEQ_LENGTH = 160
+SEQ_LENGTH = 15
 MODEL_PATH = "models"
 SCALER_PATH = "scalers"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -55,7 +55,7 @@ class LSTMModelMultiStep(nn.Module):
 
 # Модель GRU для многодневного прогнозирования
 class GRUModelMultiStep(nn.Module):
-    def __init__(self, input_size=7, hidden_size=64, num_layers=2, forecast_length=7):
+    def __init__(self, input_size=7, hidden_size=128, num_layers=3, forecast_length=7):
         super(GRUModelMultiStep, self).__init__()
         self.gru = nn.GRU(input_size, hidden_size, num_layers, batch_first=True, bidirectional=True, dropout=0.2)
         self.fc = nn.Linear(hidden_size * 2, forecast_length)
@@ -391,12 +391,13 @@ def predict():
         pred_back_lstm is not None
         and real_back_lstm is not None
         and back_dates_lstm
+        and back_dates_gru
     ):
         trace_backtest = go.Scatter(
             x=back_dates_lstm,
             y=pred_back_lstm,
             mode="lines+markers",
-            name="Прогноз назад",
+            name="Прогноз назад LSTM",
             line=dict(color="magenta"),
         )
         trace_backtest_actual = go.Scatter(
@@ -406,7 +407,14 @@ def predict():
             name="Реальные значения (назад)",
             line=dict(color="lime"),
         )
-        traces += [trace_backtest_actual, trace_backtest]
+        trace_backtest_gru = go.Scatter(
+            x=back_dates_gru,
+            y=pred_back_gru,
+            mode="lines+markers",
+            name="Прогноз назад GRU",
+            line=dict(color="dodgerblue"),
+        )
+        traces += [trace_backtest_actual, trace_backtest, trace_backtest_gru]
 
     layout = go.Layout(
         title=f'{selected_ticker} - Прогноз на {forecast_days} дней',

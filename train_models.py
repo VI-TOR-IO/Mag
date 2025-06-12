@@ -64,7 +64,7 @@ class LSTMModelMultiStep(nn.Module):
 
 # Модель GRU для многодневного прогнозирования
 class GRUModelMultiStep(nn.Module):
-    def __init__(self, input_size=7, hidden_size=64, num_layers=2, forecast_length=7, dropout=0.2):
+    def __init__(self, input_size=7, hidden_size=128, num_layers=3, forecast_length=7, dropout=0.3):
         super().__init__()
         self.gru = nn.GRU(input_size, hidden_size, num_layers, batch_first=True, bidirectional=True, dropout=dropout)
         self.fc = nn.Linear(hidden_size * 2, forecast_length)
@@ -253,7 +253,7 @@ for ticker in TICKERS:
         # Оценка модели на тестовых данных
         evaluate_model(model, test_loader)
 
-        # ---- Обучение GRU модели ----
+        # Обучение GRU модели
         gru_model = GRUModelMultiStep(input_size=7, forecast_length=forecast_days).to(device)
         train_lstm_multistep_with_early_stopping(gru_model, train_loader, val_loader, num_epochs=50, lr=0.001, patience=5)
         gru_path = f"{MODEL_PATH}/{ticker}_gru_model_{forecast_days}d.pth"
