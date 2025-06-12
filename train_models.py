@@ -1,6 +1,5 @@
 import os
 import numpy as np
-import pandas as pd
 import joblib
 from datetime import datetime, timedelta
 from moexalgo import Stock
