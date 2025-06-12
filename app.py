@@ -53,6 +53,20 @@ class LSTMModelMultiStep(nn.Module):
         out = self.fc(out)
         return out
 
+# Модель GRU для многодневного прогнозирования
+class GRUModelMultiStep(nn.Module):
+    def __init__(self, input_size=7, hidden_size=64, num_layers=2, forecast_length=7):
+        super(GRUModelMultiStep, self).__init__()
+        self.gru = nn.GRU(input_size, hidden_size, num_layers, batch_first=True, bidirectional=True, dropout=0.2)
+        self.fc = nn.Linear(hidden_size * 2, forecast_length)
+        self.dropout = nn.Dropout(0.2)
+
+    def forward(self, x):
+        out, _ = self.gru(x)
+        out = self.dropout(out[:, -1, :])
+        out = self.fc(out)
+        return out
+
 
 def get_prices(ticker_symbol):
     stock = Stock(ticker_symbol)
@@ -162,12 +176,21 @@ models_cache = {}
 def load_all_models():
     for ticker in TICKERS:
         for days in [1, 3, 7, 30]:
-            model_path = f"{MODEL_PATH}/{ticker}_model_{days}d.pth"
-            if os.path.exists(model_path):
+            # LSTM
+            lstm_path = f"{MODEL_PATH}/{ticker}_model_{days}d.pth"
+            if os.path.exists(lstm_path):
                 model = LSTMModelMultiStep(input_size=7, forecast_length=days).to(device)
-                model.load_state_dict(torch.load(model_path, map_location=device))
+                model.load_state_dict(torch.load(lstm_path, map_location=device))
                 model.eval()
-                models_cache[(ticker, days)] = model
+                models_cache[(ticker, days, 'lstm')] = model
+
+            # GRU
+            gru_path = f"{MODEL_PATH}/{ticker}_gru_model_{days}d.pth"
+            if os.path.exists(gru_path):
+                g_model = GRUModelMultiStep(input_size=7, forecast_length=days).to(device)
+                g_model.load_state_dict(torch.load(gru_path, map_location=device))
+                g_model.eval()
+                models_cache[(ticker, days, 'gru')] = g_model
 
 @app.route('/')
 def index():
@@ -249,16 +272,26 @@ def predict():
     if len(prices) < seq_length + forecast_days:
         return jsonify({'error': 'Недостаточно данных для прогноза'})
 
-    model = models_cache.get((selected_ticker, forecast_days))
-    if model is None:
+    model_lstm = models_cache.get((selected_ticker, forecast_days, 'lstm'))
+    model_gru = models_cache.get((selected_ticker, forecast_days, 'gru'))
+    if model_lstm is None and model_gru is None:
         return jsonify({'error': 'Модель не найдена'})
 
-    # Прогноз вперед
-    future_predictions = predict_lstm_multistep(features, model, x_scaler, y_scaler, seq_length, forecast_days)
-    # Сдвигаем прогноз, чтобы первая точка совпадала с последней реальной ценой
-    if len(future_predictions) > 0:
-        offset = prices[-1] - future_predictions[0]
-        future_predictions = future_predictions + offset
+    # Прогноз вперед от LSTM
+    future_predictions = []
+    if model_lstm is not None:
+        future_predictions = predict_lstm_multistep(features, model_lstm, x_scaler, y_scaler, seq_length, forecast_days)
+        if len(future_predictions) > 0:
+            offset = prices[-1] - future_predictions[0]
+            future_predictions = future_predictions + offset
+
+    # Прогноз вперед от GRU
+    future_predictions_gru = []
+    if model_gru is not None:
+        future_predictions_gru = predict_lstm_multistep(features, model_gru, x_scaler, y_scaler, seq_length, forecast_days)
+        if len(future_predictions_gru) > 0:
+            offset_g = prices[-1] - future_predictions_gru[0]
+            future_predictions_gru = future_predictions_gru + offset_g
     # Backtest для ошибок
     backtest_predictions, backtest_error, pred_back, real_back, back_dates = backtest_lstm_multistep(
         features, model, x_scaler, y_scaler, seq_length, forecast_days, real_dates
@@ -275,8 +308,12 @@ def predict():
         line=dict(color='cyan')
     )
     trace_pred = go.Scatter(x=forecast_x, y=future_predictions, mode='lines+markers',
-                            name='Прогноз (вперёд)', line=dict(color='orange'))
+                            name='Прогноз LSTM', line=dict(color='orange'))
     traces = [trace_real, trace_pred]
+    if future_predictions_gru:
+        trace_pred_gru = go.Scatter(x=forecast_x, y=future_predictions_gru, mode='lines+markers',
+                                    name='Прогноз GRU', line=dict(color='deepskyblue'))
+        traces.append(trace_pred_gru)
 
     if backtest_predictions and pred_back is not None and real_back is not None and back_dates:
         trace_backtest = go.Scatter(x=back_dates, y=pred_back, mode='lines+markers',
@@ -346,12 +383,14 @@ def predict():
         error_plot_div = pyo.plot(fig_error, output_type='div', config={'responsive': True})
 
     forecast_dates = [(last_date + timedelta(days=i)).strftime('%a, %d %B') for i in range(1, forecast_days + 1)]
-    predictions = [{'date': date, 'value': round(val, 2)} for date, val in zip(forecast_dates, future_predictions)]
+    base_preds = future_predictions if future_predictions else future_predictions_gru
+    predictions = [{'date': date, 'value': round(val, 2)} for date, val in zip(forecast_dates, base_preds)]
 
     # --- Рекомендация Покупка/Продажа ---
     RECOMMENDATION_THRESHOLD = 2.0  # %
     last_real_price = prices[-1]
-    diff_percent = ((future_predictions[-1] - last_real_price) / last_real_price) * 100
+    chosen_pred = future_predictions if future_predictions else future_predictions_gru
+    diff_percent = ((chosen_pred[-1] - last_real_price) / last_real_price) * 100
 
     if diff_percent > RECOMMENDATION_THRESHOLD:
         recommendation = "Покупка"
@@ -371,7 +410,7 @@ def predict():
         'predictions_html': predictions_html,
         'recommendation': recommendation,
         'diff_percent': round(diff_percent, 2) if diff_percent is not None else None,
-        'forecast_price': round(float(future_predictions[-1]), 2),
+        'forecast_price': round(float(chosen_pred[-1]), 2),
         'show_recommendation': True
     })
 
