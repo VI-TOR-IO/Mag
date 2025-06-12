@@ -63,6 +63,20 @@ class LSTMModelMultiStep(nn.Module):
         out = self.fc(out)
         return out
 
+# Модель GRU для многодневного прогнозирования
+class GRUModelMultiStep(nn.Module):
+    def __init__(self, input_size=7, hidden_size=64, num_layers=2, forecast_length=7, dropout=0.2):
+        super().__init__()
+        self.gru = nn.GRU(input_size, hidden_size, num_layers, batch_first=True, bidirectional=True, dropout=dropout)
+        self.fc = nn.Linear(hidden_size * 2, forecast_length)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x):
+        out, _ = self.gru(x)
+        out = self.dropout(out[:, -1, :])
+        out = self.fc(out)
+        return out
+
 # Функция для получения исторических данных по акциям
 def get_prices(ticker_symbol):
     stock = Stock(ticker_symbol)
@@ -224,7 +238,7 @@ for ticker in TICKERS:
         val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
         test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False)
 
-        # Создание и тренировка модели
+        # Создание и тренировка LSTM модели
         model = LSTMModelMultiStep(input_size=7, forecast_length=forecast_days).to(device)
         train_lstm_multistep_with_early_stopping(model, train_loader, val_loader, num_epochs=50, lr=0.001, patience=5)
 
@@ -239,3 +253,11 @@ for ticker in TICKERS:
 
         # Оценка модели на тестовых данных
         evaluate_model(model, test_loader)
+
+        # ---- Обучение GRU модели ----
+        gru_model = GRUModelMultiStep(input_size=7, forecast_length=forecast_days).to(device)
+        train_lstm_multistep_with_early_stopping(gru_model, train_loader, val_loader, num_epochs=50, lr=0.001, patience=5)
+        gru_path = f"{MODEL_PATH}/{ticker}_gru_model_{forecast_days}d.pth"
+        torch.save(gru_model.state_dict(), gru_path)
+        print(f"GRU модель сохранена: {gru_path}")
+        evaluate_model(gru_model, test_loader)

@@ -3,33 +3,22 @@
   <table class="table table-sm table-dark align-middle mb-0 rounded-3 overflow-hidden">
     <thead class="bg-secondary bg-gradient text-light small">
       <tr>
-        <th>Дата</th>
-        <th>Значение</th>
+        <th>Дата (назад)</th>
+        <th>Значение назад</th>
+        <th>Дата (вперёд)</th>
+        <th>Значение вперёд</th>
       </tr>
     </thead>
     <tbody>
-      {% if backtest_predictions %}
-        <tr>
-          <td colspan="2" class="text-left text-info"><strong>Прогноз назад</strong></td>
-        </tr>
-        {% for p in backtest_predictions %}
-        <tr>
-          <td>{{ p.date }}</td>
-          <td>{{ p.value }}</td>
-        </tr>
-        {% endfor %}
-      {% endif %}
-      {% if predictions %}
-        <tr>
-          <td colspan="2" class="text-left text-info"><strong>Прогноз вперёд</strong></td>
-        </tr>
-        {% for p in predictions %}
-        <tr>
-          <td>{{ p.date }}</td>
-          <td>{{ p.value }}</td>
-        </tr>
-        {% endfor %}
-      {% endif %}
+      {% set max_len = [backtest_predictions|length, predictions|length]|max %}
+      {% for i in range(max_len) %}
+      <tr>
+        <td>{{ backtest_predictions[i].date if i < backtest_predictions|length else '' }}</td>
+        <td>{{ backtest_predictions[i].value if i < backtest_predictions|length else '' }}</td>
+        <td>{{ predictions[i].date if i < predictions|length else '' }}</td>
+        <td>{{ predictions[i].value if i < predictions|length else '' }}</td>
+      </tr>
+      {% endfor %}
     </tbody>
   </table>
 </div>
