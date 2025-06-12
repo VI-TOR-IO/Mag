@@ -517,10 +517,13 @@ def predict():
         recommendation = "Держать"
 
     plot_html = render_template('partials/plot.html', plot_div=plot_div, error_plot_div=error_plot_div)
-    predictions_html = render_template('partials/predictions.html',
-                                       predictions=predictions,
-                                       backtest_predictions=backtest_predictions_lstm,
-                                       backtest_error=backtest_error_lstm)
+    predictions_html = render_template(
+        'partials/predictions.html',
+        predictions=predictions,
+        backtest_predictions=backtest_predictions_lstm,
+        backtest_error_lstm=backtest_error_lstm,
+        backtest_error_gru=backtest_error_gru,
+    )
 
     return jsonify({
         'plot_html': plot_html,

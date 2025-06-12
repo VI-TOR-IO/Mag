@@ -1,5 +1,13 @@
 <div class="table-responsive">
-  <div class="alert alert-info">Ошибка на истории: MAE = {{ backtest_error.mae }}, RMSE = {{ backtest_error.rmse }}</div>
+  <div class="alert alert-info">
+    Ошибка LSTM: MAE = {{ backtest_error_lstm.mae }},
+    RMSE = {{ backtest_error_lstm.rmse }}
+    {% if backtest_error_gru.mae %}
+      <br>
+      Ошибка GRU: MAE = {{ backtest_error_gru.mae }},
+      RMSE = {{ backtest_error_gru.rmse }}
+    {% endif %}
+  </div>
   <table class="table table-sm table-dark align-middle mb-0 rounded-3 overflow-hidden">
     <thead class="bg-secondary bg-gradient text-light small">
       <tr>
