@@ -167,7 +167,6 @@ def load_all_models():
                 model.load_state_dict(torch.load(model_path, map_location=device))
                 model.eval()
                 models_cache[(ticker, days)] = model
-load_all_models()
 
 @app.route('/')
 def index():
@@ -462,4 +461,5 @@ def delete_transaction(transaction_id):
     return redirect(url_for('profile'))
 
 if __name__ == '__main__':
+    load_all_models()
     app.run(debug=True)
