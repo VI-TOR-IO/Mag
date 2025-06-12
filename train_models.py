@@ -13,9 +13,9 @@ from math import sqrt
 from sklearn.model_selection import train_test_split
 
 # Параметры
-TICKERS = ["SBER"]
-FORECAST_DAYS_LIST = [1, 3, 7, 30]
-SEQ_LENGTH = 160
+TICKERS = ["SBER", "GAZP", "LKOH", "VTBR", "ROSN"]
+FORECAST_DAYS_LIST = [1,3,7,30]
+SEQ_LENGTH = 30
 MODEL_PATH = "models"
 SCALER_PATH = "scalers"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -39,11 +39,13 @@ class StockDatasetMultiStep(Dataset):
         self.forecast_length = forecast_length
 
     def __len__(self):
-        return len(self.x_data) - self.seq_length - self.forecast_length
+        # Убедитесь, что данных достаточно для создания хотя бы одной последовательности
+        length = len(self.x_data) - self.seq_length - self.forecast_length
+        return max(0, length)  # Возвращаем 0, если данных недостаточно
 
     def __getitem__(self, index):
-        x = self.x_data[index:index+self.seq_length]
-        y = self.y_data[index+self.seq_length:index+self.seq_length+self.forecast_length]
+        x = self.x_data[index:index + self.seq_length]
+        y = self.y_data[index + self.seq_length:index + self.seq_length + self.forecast_length]
         y = y.squeeze()
         return torch.tensor(x, dtype=torch.float32), torch.tensor(y, dtype=torch.float32)
 
@@ -65,10 +67,15 @@ class LSTMModelMultiStep(nn.Module):
 def get_prices(ticker_symbol):
     stock = Stock(ticker_symbol)
     end_date = datetime.today()
-    start_date = end_date - timedelta(days=400)
-    df = stock.candles(start=start_date, end=end_date)
+    start_date = end_date - timedelta(days=1500)
+    df = stock.candles(start=start_date, end=end_date, period='1d')
+    print(f"Размер данных до добавления индикаторов для {ticker_symbol}: {len(df)}")
+    
+    # Добавляем технические индикаторы
     df = df[['open', 'high', 'low', 'close', 'volume']].reset_index(drop=True)
     df = add_technical_indicators(df)
+
+    print(f"Размер данных после добавления индикаторов для {ticker_symbol}: {len(df)}")
     return df
 
 # Реализация ранней остановки
@@ -195,13 +202,23 @@ for ticker in TICKERS:
             print(f"Недостаточно данных для {ticker} {forecast_days} дней, пропуск...")
             continue
 
-        # Разделим данные на обучающую, валидационную и тестовую выборки
+        # Разделение данных на обучающую, валидационную и тестовую выборки
         x_train, x_test, y_train, y_test = train_test_split(x_scaled, y_scaled, test_size=0.2, shuffle=False)
         x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.1, shuffle=False)
+
+        # Проверка длины выборок
+        if len(x_train) < SEQ_LENGTH or len(x_val) < SEQ_LENGTH or len(x_test) < SEQ_LENGTH:
+            print(f"Недостаточно данных для {ticker}, пропуск...")
+            continue
 
         train_dataset = StockDatasetMultiStep(x_train, y_train, SEQ_LENGTH, forecast_days)
         val_dataset = StockDatasetMultiStep(x_val, y_val, SEQ_LENGTH, forecast_days)
         test_dataset = StockDatasetMultiStep(x_test, y_test, SEQ_LENGTH, forecast_days)
+
+        # Проверка на пустые данные
+        if len(train_dataset) == 0 or len(val_dataset) == 0 or len(test_dataset) == 0:
+            print(f"Недостаточно данных для {ticker}, пропуск...")
+            continue
 
         train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
         val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)

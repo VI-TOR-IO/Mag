@@ -57,8 +57,8 @@ class LSTMModelMultiStep(nn.Module):
 def get_prices(ticker_symbol):
     stock = Stock(ticker_symbol)
     end_date = datetime.today()
-    start_date = end_date - timedelta(days=400)
-    df = stock.candles(start=start_date, end=end_date)
+    start_date = end_date - timedelta(days=1500)
+    df = stock.candles(start=start_date, end=end_date,period='1d')
     df['begin'] = pd.to_datetime(df['begin'])
     df = df[['begin', 'open', 'high', 'low', 'close', 'volume']]
     df = add_technical_indicators(df)
