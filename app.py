@@ -241,7 +241,6 @@ def predict():
     x_scaler = joblib.load(x_scaler_path)
     y_scaler = joblib.load(y_scaler_path)
 
-    scaled_features = x_scaler.transform(features)
 
     MIN_SEQ_LENGTH = 30
     max_possible_seq = len(prices) - forecast_days
