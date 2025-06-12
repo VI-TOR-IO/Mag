@@ -102,14 +102,18 @@ def backtest_lstm_multistep(data, model, x_scaler, y_scaler, seq_length, forecas
 
     raw_dates = real_dates[i:i + forecast_length]
 
+    # Группируем значения и предсказания по дням
     daily_data = {}
     for d, p, r in zip(raw_dates, pred, real):
         day = d.date()
-        daily_data[day] = (p, r)
+        daily_data.setdefault(day, {'pred': [], 'real': []})
+        daily_data[day]['pred'].append(p)
+        daily_data[day]['real'].append(r)
 
-    dates = [datetime.combine(day, datetime.min.time()) for day in sorted(daily_data.keys())]
-    pred_daily = [daily_data[day][0] for day in sorted(daily_data.keys())]
-    real_daily = [daily_data[day][1] for day in sorted(daily_data.keys())]
+    sorted_days = sorted(daily_data.keys())
+    dates = [datetime.combine(day, datetime.min.time()) for day in sorted_days]
+    pred_daily = [np.mean(daily_data[day]['pred']) for day in sorted_days]
+    real_daily = [np.mean(daily_data[day]['real']) for day in sorted_days]
 
     mae = mean_absolute_error(real_daily, pred_daily)
     rmse = np.sqrt(mean_squared_error(real_daily, pred_daily))
