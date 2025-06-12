@@ -343,7 +343,7 @@ def predict():
         mae = backtest_error_lstm['mae']  # Используем MAE из словаря
         trace_error_lstm = go.Scatter(
             x=real_dates,
-            y=[p - mae for p in backtest_predictions_lstm],  # Используем mae для ошибки
+            y=[p['value'] - mae for p in backtest_predictions_lstm],  # Используем mae для ошибки
             mode='lines+markers',
             name='Ошибка прогноза LSTM (руб.)',
             line=dict(color='red', dash='dot'),
@@ -351,7 +351,7 @@ def predict():
         )
         trace_percent_lstm = go.Scatter(
             x=real_dates,
-            y=[(p - mae) / mae * 100 if mae else 0 for p in backtest_predictions_lstm],  # Используем mae для процента ошибки
+            y=[(p['value'] - mae) / mae * 100 if mae else 0 for p in backtest_predictions_lstm],  # Используем mae для процента ошибки
             mode='lines+markers',
             name='Ошибка прогноза LSTM (%)',
             yaxis='y2',
