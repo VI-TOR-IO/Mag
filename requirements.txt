@@ -1,0 +1,8 @@
+Flask
+pandas
+numpy
+torch
+plotly
+moexalgo
+scikit-learn
+joblib
