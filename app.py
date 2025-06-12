@@ -41,7 +41,7 @@ class StockDatasetMultiStep(Dataset):
         return torch.tensor(x, dtype=torch.float32), torch.tensor(y.squeeze(), dtype=torch.float32)
 
 class LSTMModelMultiStep(nn.Module):
-    def __init__(self, input_size=7, hidden_size=128, num_layers=3, forecast_length=30, dropout=0.3):
+    def __init__(self, input_size=7, hidden_size=128, num_layers=3, forecast_length=7):
         super(LSTMModelMultiStep, self).__init__()
         self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, bidirectional=True, dropout=0.2)
         self.fc = nn.Linear(hidden_size * 2, forecast_length)
