@@ -100,7 +100,11 @@ def backtest_lstm_multistep(data, model, x_scaler, y_scaler, seq_length, forecas
     if len(real) < forecast_length or len(real) == 0:
         return [], {'mae': None, 'rmse': None}, [], [], []
 
-    dates = [datetime.today() - timedelta(days=forecast_length - offset + 45) for offset in range(forecast_length)]
+    # Используем реальные даты вместо смещения от текущего дня
+    if len(real_dates) >= i + forecast_length:
+        dates = real_dates[i:i + forecast_length]
+    else:
+        dates = [datetime.today() - timedelta(days=forecast_length - offset + 45) for offset in range(forecast_length)]
 
     mae = mean_absolute_error(real, pred)
     rmse = np.sqrt(mean_squared_error(real, pred))
@@ -251,16 +255,20 @@ def predict():
 
     # Прогноз вперед
     future_predictions = predict_lstm_multistep(features, model, x_scaler, y_scaler, seq_length, forecast_days)
+    # Сдвигаем прогноз, чтобы первая точка совпадала с последней реальной ценой
+    if len(future_predictions) > 0:
+        offset = prices[-1] - future_predictions[0]
+        future_predictions = future_predictions + offset
     # Backtest для ошибок
     backtest_predictions, backtest_error, pred_back, real_back, back_dates = backtest_lstm_multistep(
         features, model, x_scaler, y_scaler, seq_length, forecast_days, real_dates
     )
 
     # График цен
-    forecast_x = [datetime.today() + timedelta(days=i - 1) for i in range(forecast_days)]
-    # График цен
+    last_date = df['begin'].iloc[-1]
+    forecast_x = [last_date + timedelta(days=i) for i in range(1, forecast_days + 1)]
     trace_real = go.Scatter(
-        x=[datetime.today() - timedelta(days=len(prices) - i) for i in range(len(prices))],
+        x=df['begin'],
         y=df['close'],
         mode='lines',
         name='Исторические данные',
@@ -280,8 +288,8 @@ def predict():
     N = 30
     if len(prices) > N:
         x_range = [
-            (datetime.today() - timedelta(days=N - 1)).strftime('%Y-%m-%d'),
-            datetime.today().strftime('%Y-%m-%d')
+            df['begin'].iloc[-N].strftime('%Y-%m-%d'),
+            df['begin'].iloc[-1].strftime('%Y-%m-%d')
         ]
     else:
         x_range = None
@@ -337,7 +345,7 @@ def predict():
         fig_error = go.Figure(data=[trace_error, trace_percent], layout=layout_error)
         error_plot_div = pyo.plot(fig_error, output_type='div', config={'responsive': True})
 
-    forecast_dates = [(datetime.today() + timedelta(days=i)).strftime('%a, %d %B') for i in range(forecast_days)]
+    forecast_dates = [(last_date + timedelta(days=i)).strftime('%a, %d %B') for i in range(1, forecast_days + 1)]
     predictions = [{'date': date, 'value': round(val, 2)} for date, val in zip(forecast_dates, future_predictions)]
 
     # --- Рекомендация Покупка/Продажа ---
