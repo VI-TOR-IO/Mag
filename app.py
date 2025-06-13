@@ -41,7 +41,7 @@ class StockDatasetMultiStep(Dataset):
         return torch.tensor(x, dtype=torch.float32), torch.tensor(y.squeeze(), dtype=torch.float32)
 
 class LSTMModelMultiStep(nn.Module):
-    def __init__(self, input_size=7, hidden_size=128, num_layers=3, forecast_length=7):
+    def __init__(self, input_size=7, hidden_size=128, num_layers=2, forecast_length=1):
         super(LSTMModelMultiStep, self).__init__()
         self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, bidirectional=True, dropout=0.2)
         self.fc = nn.Linear(hidden_size * 2, forecast_length)
@@ -55,7 +55,7 @@ class LSTMModelMultiStep(nn.Module):
 
 # Модель GRU для многодневного прогнозирования
 class GRUModelMultiStep(nn.Module):
-    def __init__(self, input_size=7, hidden_size=128, num_layers=3, forecast_length=7):
+    def __init__(self, input_size=7, hidden_size=128, num_layers=2, forecast_length=1):
         super(GRUModelMultiStep, self).__init__()
         self.gru = nn.GRU(input_size, hidden_size, num_layers, batch_first=True, bidirectional=True, dropout=0.2)
         self.fc = nn.Linear(hidden_size * 2, forecast_length)
